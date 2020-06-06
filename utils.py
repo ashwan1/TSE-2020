@@ -1,3 +1,4 @@
+from gensim.models import FastText
 from tokenizers import ByteLevelBPETokenizer
 
 from config import Config
@@ -10,10 +11,16 @@ __roberta_tokenizer = ByteLevelBPETokenizer(vocab_file=str(Config.Roberta.vocab_
                                             merges_file=str(Config.Roberta.merges_file), add_prefix_space=True,
                                             lowercase=True)
 
+__ft_embeddings = FastText.load(str(Config.ft_embeddings_path))
+
 
 def get_tokenizer(name: str):
     if name == 'roberta':
         return __roberta_tokenizer
+
+
+def get_ft_embeddings():
+    return __ft_embeddings
 
 
 def get_train_steps():

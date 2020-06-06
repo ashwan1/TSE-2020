@@ -12,6 +12,9 @@ class Config:
     validation_path = _root_dir / 'data/validation.csv'
     test_path = _root_dir / 'data/test.csv'
 
+    ft_embeddings_path = _root_dir / 'embeddings/fasttext/twitter/twitter_ft.model'
+    ft_embeddings_size = 200
+
     class Roberta:
         roberta_base_path = _root_dir / 'pretrained_models/roberta_base'
         vocab_file = roberta_base_path / 'vocab.json'
@@ -21,7 +24,7 @@ class Config:
 
     class Train:
         batch_size = 32
-        max_len = 100
+        max_len = 96
         label_smoothing = 0.1
         checkpoint_dir = _root_dir / 'checkpoints'
         tf_log_dir = _root_dir / 'tf_logs'

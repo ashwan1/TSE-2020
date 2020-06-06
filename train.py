@@ -12,7 +12,6 @@ from tensorflow import keras
 from config import Config
 from data_utils import RobertaDataGenerator
 from models.roberta import get_roberta
-from test import predict_test
 from utils import get_jaccard_from_df
 
 
@@ -62,9 +61,21 @@ def train_roberta():
     model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / f'weights_{Config.version}.h5'))
 
     print('\nPredicting on validation set')
+    _val_generator = RobertaDataGenerator(val_df, augment=False)
+    val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
+                                                 output_types=(
+                                                     {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
+                                                     {'sts': tf.int32, 'ets': tf.int32}))
+    val_dataset = val_dataset.padded_batch(Config.Train.batch_size,
+                                           padded_shapes=({'ids': [max_l], 'att': [max_l], 'tti': [max_l]},
+                                                          {'sts': [max_l], 'ets': [max_l]}),
+                                           padding_values=({'ids': 1, 'att': 0, 'tti': 0},
+                                                           {'sts': 0, 'ets': 0}))
+    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
     start_idx, end_idx = model.predict(val_dataset, verbose=1)
     start_idx = np.argmax(start_idx, axis=-1)
     end_idx = np.argmax(end_idx, axis=-1)
+    val_df = val_df[_val_generator.exception_mask]
     start_gt_end_df = val_df[start_idx > end_idx]
     start_gt_end_df.to_csv('start_gt_end.csv', index=False)
     end_idx = np.where(start_idx > end_idx, start_idx, end_idx)
@@ -90,5 +101,5 @@ if __name__ == '__main__':
     #     except RuntimeError as e:
     #         # Memory growth must be set before GPUs have been initialized
     #         print(e)
-    if Config.model_type == 'roberta':
+    if Config.model_type == 'roberta' or Config.model_type == 'distill_roberta':
         train_roberta()
