@@ -16,29 +16,28 @@ def get_roberta():
 
     x = roberta_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
 
-    x1 = keras.layers.Dropout(0.2)(x[0])
-    x1 = keras.layers.Conv1D(16, 4, padding='same')(x1)
+    x1 = keras.layers.Dropout(0.15)(x[0])
+    x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)
     x1 = keras.layers.LeakyReLU()(x1)
-    x1 = keras.layers.LayerNormalization()(x1)
-    x1 = keras.layers.Conv1D(8, 3, padding='same')(x1)
-    x1 = keras.layers.LeakyReLU()(x1)
-    x1 = keras.layers.LayerNormalization()(x1)
-    x1 = keras.layers.Conv1D(1, 1)(x1)
+    x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
+    x1 = keras.layers.Dense(1)(x1)
     x1 = keras.layers.Flatten()(x1)
     x1 = keras.layers.Activation('softmax', name='sts')(x1)
 
-    x2 = keras.layers.Dropout(0.1)(x[0])
-    x2 = keras.layers.Conv1D(16, 3, padding='same')(x2)
+    x2 = keras.layers.Dropout(0.15)(x[0])
+    x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
     x2 = keras.layers.LeakyReLU()(x2)
-    x2 = keras.layers.LayerNormalization()(x2)
-    x2 = keras.layers.Conv1D(24, 4, padding='same')(x2)
-    x2 = keras.layers.LeakyReLU()(x2)
-    x2 = keras.layers.LayerNormalization()(x2)
-    x2 = keras.layers.Conv1D(1, 1)(x2)
+    x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
+    x2 = keras.layers.Dense(1)(x2)
     x2 = keras.layers.Flatten()(x2)
     x2 = keras.layers.Activation('softmax', name='ets')(x2)
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
+
+    optimizer = keras.optimizers.Adam(learning_rate=3e-5)
+    loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
+    model.compile(loss=loss, optimizer=optimizer)
+
     return model
 
 
