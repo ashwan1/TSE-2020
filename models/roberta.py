@@ -4,6 +4,7 @@ from tensorflow import keras
 from transformers import RobertaConfig, TFRobertaModel
 
 from config import Config
+from custom_layers import GELU
 
 
 def get_roberta():
@@ -18,7 +19,7 @@ def get_roberta():
 
     x1 = keras.layers.Dropout(0.15)(x[0])
     x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)
-    x1 = keras.layers.LeakyReLU()(x1)
+    x1 = GELU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
     x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
     x1 = keras.layers.Dense(1)(x1)
@@ -27,7 +28,7 @@ def get_roberta():
 
     x2 = keras.layers.Dropout(0.15)(x[0])
     x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
-    x2 = keras.layers.LeakyReLU()(x2)
+    x2 = GELU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
     x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
     x2 = keras.layers.Dense(1)(x2)
