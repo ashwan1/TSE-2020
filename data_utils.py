@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from tensorflow import keras
 from config import Config
 from augmentation import synonym_replacement, random_char_repeat, random_char_deletion
 from utils import get_tokenizer, get_ft_embeddings
@@ -255,3 +256,39 @@ class WordLevelDataGenerator:
                 self.mask.append(False)
                 continue
             yield {'inputs': inputs.tolist()}, {'sts': start_tokens, 'ets': end_tokens}
+
+
+class RobertaClassificationDataGenerator:
+    def __init__(self, data: pd.DataFrame, augment: bool = False):
+        self._augment = augment
+        self._tokenizer = get_tokenizer('roberta')
+        self._sentiment_ids = {'positive': 1, 'negative': 2, 'neutral': 0}
+        self._data_df = data
+
+    def generate(self):
+        for row in self._data_df.itertuples(index=False, name='tweet'):
+            text: str = row.text.lower()
+            if self._augment and random.random() > 0.5:
+                text_list = text.split()
+                n = random.choice([0, 1, 2, 3])
+                if n == 0:
+                    text_list, change_logs = synonym_replacement(text_list, 2)
+                    text = ' '.join(text_list)
+                elif n == 1:
+                    text_list, change_logs = random_char_repeat(text_list)
+                    text = ' '.join(text_list)
+                elif n == 2:
+                    text_list, change_logs = random_char_deletion(text_list)
+                    text = ' '.join(text_list)
+                else:
+                    text = ' '.join(text_list)
+            text = ' ' + ' '.join(text.split())
+            encoded_text = self._tokenizer.encode(text)
+            sentiment_id = self._sentiment_ids[row.sentiment]
+            # below [2] is token id for </s> token
+            input_ids = [0] + encoded_text.ids + [2]
+            len_encoded_ids = len(encoded_text.ids)
+            attention_mask = [1] * (len_encoded_ids + 2)
+            token_type_ids = [0] * (len_encoded_ids + 2)
+            yield ({'ids': input_ids, 'att': attention_mask, 'tti': token_type_ids},
+                   {'sentiment': keras.utils.to_categorical(sentiment_id, num_classes=3)})

@@ -52,5 +52,7 @@ def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray, end_idx: np.nda
         text = ' ' + ' '.join(row.text.split())
         encoded_text = tokenizer.encode(text)
         pred_selected_text = tokenizer.decode(encoded_text.ids[a - 1:b])
+        # if row.sentiment.lower() == 'neutral':
+        #     pred_selected_text = row.selected_text
         jaccards.append(jaccard(row.selected_text, pred_selected_text))
     return float(np.mean(jaccards))

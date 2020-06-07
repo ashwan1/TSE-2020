@@ -4,8 +4,6 @@ from tensorflow import keras
 from transformers import RobertaConfig, TFRobertaModel
 
 from config import Config
-from custom_optimizers.cyclical_learning_rate import TriangularCyclicalLearningRate
-from custom_optimizers.rectified_adam import RectifiedAdam
 
 
 def get_roberta():
@@ -38,8 +36,7 @@ def get_roberta():
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
-    # lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
-    lr_schedule = TriangularCyclicalLearningRate(5e-6, 5e-5, 1380)
+    lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
     optimizer = keras.optimizers.Adam(learning_rate=lr_schedule)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
@@ -107,5 +104,28 @@ def get_tunable_roberta(hp: HyperParameters):
     optimizer = keras.optimizers.Adam(learning_rate=1e-3)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
+
+    return model
+
+
+def get_classification_roberta():
+    ids = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='ids')
+    att = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='att')
+    tok_type_ids = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='tti')
+
+    config = RobertaConfig.from_pretrained(Config.Roberta.config)
+    roberta_model = TFRobertaModel.from_pretrained(Config.Roberta.model, config=config)
+
+    x = roberta_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
+
+    x = keras.layers.Dropout(0.2)(x[0])
+    x = keras.layers.GlobalAveragePooling1D()(x)
+    x = keras.layers.Dense(3, activation='softmax', name='sentiment')(x)
+
+    model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=x)
+    lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
+    optimizer = keras.optimizers.Adam(learning_rate=lr_schedule)
+    loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
+    model.compile(loss=loss, optimizer=optimizer, metrics=['acc'])
 
     return model
