@@ -49,16 +49,16 @@ def train_roberta():
     cbs = [
         # keras.callbacks.ReduceLROnPlateau(patience=2, verbose=1, factor=0.3),
         keras.callbacks.EarlyStopping(patience=3, verbose=1, restore_best_weights=True),
-        keras.callbacks.TensorBoard(log_dir=str(Config.Train.tf_log_dir / Config.model_type), histogram_freq=2,
-                                    profile_batch=0, write_images=True),
+        # keras.callbacks.TensorBoard(log_dir=str(Config.Train.tf_log_dir / Config.model_type), histogram_freq=2,
+        #                             profile_batch=0, write_images=True),
         keras.callbacks.ModelCheckpoint(
-            str(Config.Train.checkpoint_dir / Config.model_type / f'weights_{Config.version}.h5'),
+            str(Config.Train.checkpoint_dir / Config.model_type / f'weights_v{Config.version}.h5'),
             verbose=1, save_best_only=True, save_weights_only=True)
     ]
     model.fit(train_dataset, epochs=50, verbose=1, validation_data=val_dataset, callbacks=cbs)
 
     print('\nLoading model weights...')
-    model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / f'weights_{Config.version}.h5'))
+    model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / f'weights_v{Config.version}.h5'))
 
     print('\nPredicting on validation set')
     _val_generator = RobertaDataGenerator(val_df, augment=False)

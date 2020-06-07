@@ -4,6 +4,8 @@ from tensorflow import keras
 from transformers import RobertaConfig, TFRobertaModel
 
 from config import Config
+from custom_optimizers.cyclical_learning_rate import TriangularCyclicalLearningRate
+from custom_optimizers.rectified_adam import RectifiedAdam
 
 
 def get_roberta():
@@ -36,7 +38,8 @@ def get_roberta():
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
-    lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
+    # lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
+    lr_schedule = TriangularCyclicalLearningRate(5e-6, 5e-5, 1380)
     optimizer = keras.optimizers.Adam(learning_rate=lr_schedule)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
