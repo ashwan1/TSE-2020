@@ -4,7 +4,6 @@ from tensorflow import keras
 from transformers import RobertaConfig, TFRobertaModel
 
 from config import Config
-from custom_layers import GELU
 
 
 def get_roberta():
@@ -19,7 +18,7 @@ def get_roberta():
 
     x1 = keras.layers.Dropout(0.15)(x[0])
     x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)
-    x1 = GELU()(x1)
+    x1 = keras.layers.LeakyReLU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
     x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
     x1 = keras.layers.Dense(1)(x1)
@@ -28,7 +27,7 @@ def get_roberta():
 
     x2 = keras.layers.Dropout(0.15)(x[0])
     x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
-    x2 = GELU()(x2)
+    x2 = keras.layers.LeakyReLU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
     x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
     x2 = keras.layers.Dense(1)(x2)
@@ -37,7 +36,8 @@ def get_roberta():
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
-    optimizer = keras.optimizers.Adam(learning_rate=3e-5)
+    lr_schedule = keras.experimental.CosineDecay(5e-5, 1000)
+    optimizer = keras.optimizers.Adam(learning_rate=lr_schedule)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
 

@@ -47,7 +47,7 @@ def train_roberta():
     model.summary()
 
     cbs = [
-        keras.callbacks.ReduceLROnPlateau(patience=2, verbose=1, factor=0.3),
+        # keras.callbacks.ReduceLROnPlateau(patience=2, verbose=1, factor=0.3),
         keras.callbacks.EarlyStopping(patience=3, verbose=1, restore_best_weights=True),
         keras.callbacks.TensorBoard(log_dir=str(Config.Train.tf_log_dir / Config.model_type), histogram_freq=2,
                                     profile_batch=0, write_images=True),
