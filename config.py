@@ -4,9 +4,9 @@ _root_dir = Path(__file__).parent
 
 
 class Config:
-    version = 0
+    version = 1
     seed = 42
-    model_type = 'classification_roberta'
+    model_type = 'roberta'
 
     train_path = _root_dir / 'data/train.csv'
     validation_path = _root_dir / 'data/validation.csv'
