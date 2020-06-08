@@ -36,8 +36,8 @@ def get_roberta():
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
-    lr_schedule = keras.experimental.CosineDecay(6e-5, 1000)
-    optimizer = keras.optimizers.Adam(learning_rate=lr_schedule)
+    # lr_schedule = keras.experimental.CosineDecay(6e-5, 1000)
+    optimizer = keras.optimizers.Adam(learning_rate=6e-5)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
 

@@ -14,6 +14,7 @@ from config import Config
 from data_utils import RobertaDataGenerator, RobertaClassificationDataGenerator
 from models.roberta import get_roberta, get_classification_roberta
 from utils import get_jaccard_from_df
+from custom_callbacks.warmup_cosine_decay import WarmUpCosineDecayScheduler
 
 
 def train_roberta():
@@ -49,6 +50,7 @@ def train_roberta():
 
     cbs = [
         # keras.callbacks.ReduceLROnPlateau(patience=2, verbose=1, factor=0.3),
+        WarmUpCosineDecayScheduler(6e-5, 1200, warmup_steps=300, hold_base_rate_steps=200, verbose=1),
         keras.callbacks.EarlyStopping(patience=2, verbose=1, restore_best_weights=True),
         keras.callbacks.TensorBoard(log_dir=str(Config.Train.tf_log_dir / Config.model_type), histogram_freq=2,
                                     profile_batch=0, write_images=True),
@@ -58,7 +60,7 @@ def train_roberta():
     ]
     model.fit(train_dataset, epochs=50, verbose=1, validation_data=val_dataset, callbacks=cbs)
 
-    print('\nLoading model weights...')
+    print('\nLoading model weights: {}...')
     model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / f'weights_v{Config.version}.h5'))
 
     print('\nPredicting on validation set')

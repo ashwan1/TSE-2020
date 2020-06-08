@@ -4,7 +4,7 @@ _root_dir = Path(__file__).parent
 
 
 class Config:
-    version = 1
+    version = 3
     seed = 42
     model_type = 'roberta'
 
