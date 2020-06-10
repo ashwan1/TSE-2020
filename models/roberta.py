@@ -7,9 +7,9 @@ from config import Config
 
 
 def get_roberta():
-    ids = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='ids')
-    att = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='att')
-    tok_type_ids = keras.layers.Input(shape=(Config.Train.max_len,), dtype=tf.int32, name='tti')
+    ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='ids')
+    att = keras.layers.Input(shape=(None,), dtype=tf.int32, name='att')
+    tok_type_ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='tti')
 
     config = RobertaConfig.from_pretrained(Config.Roberta.config)
     roberta_model = TFRobertaModel.from_pretrained(Config.Roberta.model, config=config)
@@ -21,6 +21,9 @@ def get_roberta():
     x1 = keras.layers.LeakyReLU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
     x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
+    x1 = keras.layers.LeakyReLU()(x1)
+    x1 = keras.layers.LayerNormalization()(x1)
+    x1 = keras.layers.Conv1D(32, 2, padding='same')(x1)
     x1 = keras.layers.Dense(1)(x1)
     x1 = keras.layers.Flatten()(x1)
     x1 = keras.layers.Activation('softmax', name='sts')(x1)
@@ -30,13 +33,15 @@ def get_roberta():
     x2 = keras.layers.LeakyReLU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
     x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
+    x2 = keras.layers.LeakyReLU()(x2)
+    x2 = keras.layers.LayerNormalization()(x2)
+    x2 = keras.layers.Conv1D(32, 2, padding='same')(x2)
     x2 = keras.layers.Dense(1)(x2)
     x2 = keras.layers.Flatten()(x2)
     x2 = keras.layers.Activation('softmax', name='ets')(x2)
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
-    # lr_schedule = keras.experimental.CosineDecay(6e-5, 1000)
     optimizer = keras.optimizers.Adam(learning_rate=6e-5)
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)

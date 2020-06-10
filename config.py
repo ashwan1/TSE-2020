@@ -4,9 +4,9 @@ _root_dir = Path(__file__).parent
 
 
 class Config:
-    version = 3
+    version = 4
     seed = 42
-    model_type = 'roberta'
+    model_type = 'distill_roberta'
 
     train_path = _root_dir / 'data/train.csv'
     validation_path = _root_dir / 'data/validation.csv'
@@ -16,13 +16,14 @@ class Config:
     ft_embeddings_size = 200
 
     class Roberta:
-        roberta_base_path = _root_dir / 'pretrained_models/roberta_base'
+        roberta_base_path = _root_dir / 'pretrained_models/distilroberta_base'
         vocab_file = roberta_base_path / 'vocab.json'
         merges_file = roberta_base_path / 'merges.txt'
         config = roberta_base_path / 'config.json'
         model = roberta_base_path / 'tf_model.h5'
 
     class Train:
+        n_folds = 5
         batch_size = 32
         max_len = 96
         label_smoothing = 0.1

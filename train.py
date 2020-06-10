@@ -1,19 +1,21 @@
 import os
-import shutil
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+import shutil
 import random
 import warnings
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
 from tensorflow import keras
 
 from config import Config
 from data_utils import RobertaDataGenerator, RobertaClassificationDataGenerator
 from models.roberta import get_roberta, get_classification_roberta
-from utils import get_jaccard_from_df
+from utils import get_jaccard_from_df, get_train_steps, get_validation_steps
 from custom_callbacks.warmup_cosine_decay import WarmUpCosineDecayScheduler
 
 
@@ -21,69 +23,100 @@ def train_roberta():
     max_l = Config.Train.max_len
     train_df = pd.read_csv(Config.train_path).dropna()
     val_df = pd.read_csv(Config.validation_path).dropna()
-    _train_generator = RobertaDataGenerator(train_df, augment=True)
-    train_dataset = tf.data.Dataset.from_generator(_train_generator.generate,
-                                                   output_types=(
-                                                       {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
-                                                       {'sts': tf.int32, 'ets': tf.int32}))
-    train_dataset = train_dataset.padded_batch(Config.Train.batch_size,
+    jaccards = []
+    model_names = []
+    skf = StratifiedKFold(Config.Train.n_folds, shuffle=True, random_state=Config.seed)
+    skf_split = skf.split(train_df.text.values, train_df.sentiment.values)
+    for i, (train_idx, oof_idx) in enumerate(skf_split):
+        print('=' * 50)
+        print(f'# Fold {i + 1}')
+        print('=' * 50)
+
+        keras.backend.clear_session()
+
+        _train_generator = RobertaDataGenerator(train_df.iloc[train_idx], augment=True)
+        train_dataset = tf.data.Dataset.from_generator(_train_generator.generate,
+                                                       output_types=(
+                                                           {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
+                                                           {'sts': tf.int32, 'ets': tf.int32}))
+        train_dataset = train_dataset.padded_batch(Config.Train.batch_size,
+                                                   padded_shapes=({'ids': [None], 'att': [None], 'tti': [None]},
+                                                                  {'sts': [None], 'ets': [None]}))
+        train_dataset = train_dataset.repeat().prefetch(tf.data.experimental.AUTOTUNE)
+
+        _oof_generator = RobertaDataGenerator(train_df.iloc[oof_idx], augment=False)
+        oof_dataset = tf.data.Dataset.from_generator(_oof_generator.generate,
+                                                     output_types=(
+                                                         {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
+                                                         {'sts': tf.int32, 'ets': tf.int32}))
+        oof_dataset = oof_dataset.padded_batch(Config.Train.batch_size,
+                                               padded_shapes=({'ids': [None], 'att': [None], 'tti': [None]},
+                                                              {'sts': [None], 'ets': [None]}))
+        oof_dataset = oof_dataset.repeat().prefetch(tf.data.experimental.AUTOTUNE)
+
+        model = get_roberta()
+        if i == 0:
+            model.summary()
+        model_name = f'weights_v{Config.version}_f{i + 1}.h5'
+        model_names.append(model_name)
+
+        cbs = [
+            WarmUpCosineDecayScheduler(6e-5, 1200, warmup_steps=300, hold_base_rate_steps=200, verbose=0),
+            keras.callbacks.ModelCheckpoint(
+                str(Config.Train.checkpoint_dir / Config.model_type / model_name),
+                verbose=1, save_best_only=True, save_weights_only=True)
+        ]
+        model.fit(train_dataset, epochs=2, verbose=1, validation_data=oof_dataset, callbacks=cbs,
+                  steps_per_epoch=get_train_steps(), validation_steps=get_validation_steps())
+
+    assert Config.Train.n_folds == len(model_names)
+    start_idx = 0
+    end_idx = 0
+    for i, model_name in enumerate(model_names):
+        print(f'\nLoading {model_name} weights...')
+        keras.backend.clear_session()
+        model = get_roberta()
+        model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / model_name))
+        print('Predicting on validation set')
+        _val_generator = RobertaDataGenerator(val_df, augment=False)
+        val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
+                                                     output_types=(
+                                                         {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
+                                                         {'sts': tf.int32, 'ets': tf.int32}))
+        val_dataset = val_dataset.padded_batch(Config.Train.batch_size,
                                                padded_shapes=({'ids': [max_l], 'att': [max_l], 'tti': [max_l]},
                                                               {'sts': [max_l], 'ets': [max_l]}),
                                                padding_values=({'ids': 1, 'att': 0, 'tti': 0},
                                                                {'sts': 0, 'ets': 0}))
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        s_idx, e_idx = model.predict(val_dataset, verbose=1)
+        start_idx += s_idx
+        end_idx += e_idx
+        s_idx = np.argmax(s_idx, axis=-1)
+        e_idx = np.argmax(e_idx, axis=-1)
+        e_idx = np.where(s_idx > e_idx, s_idx, e_idx)
+        jaccard_score = get_jaccard_from_df(val_df, s_idx, e_idx)
+        jaccards.append(jaccard_score)
+        print(f'\n>> Fold{i + 1}: Jaccard score on validation data: {jaccard_score}')
 
-    _val_generator = RobertaDataGenerator(val_df, augment=False)
-    val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
-                                                 output_types=(
-                                                     {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
-                                                     {'sts': tf.int32, 'ets': tf.int32}))
-    val_dataset = val_dataset.padded_batch(Config.Train.batch_size,
-                                           padded_shapes=({'ids': [max_l], 'att': [max_l], 'tti': [max_l]},
-                                                          {'sts': [max_l], 'ets': [max_l]}),
-                                           padding_values=({'ids': 1, 'att': 0, 'tti': 0},
-                                                           {'sts': 0, 'ets': 0}))
-    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    print(f'\n>> Mean jaccard score for {Config.Train.n_folds} folds: {np.mean(jaccards)}\n')
 
-    model = get_roberta()
-    model.summary()
-
-    cbs = [
-        # keras.callbacks.ReduceLROnPlateau(patience=2, verbose=1, factor=0.3),
-        WarmUpCosineDecayScheduler(6e-5, 1200, warmup_steps=300, hold_base_rate_steps=200, verbose=0),
-        keras.callbacks.EarlyStopping(patience=2, verbose=1, restore_best_weights=True),
-        keras.callbacks.TensorBoard(log_dir=str(Config.Train.tf_log_dir / Config.model_type), histogram_freq=2,
-                                    profile_batch=0, write_images=True),
-        keras.callbacks.ModelCheckpoint(
-            str(Config.Train.checkpoint_dir / Config.model_type / f'weights_v{Config.version}.h5'),
-            verbose=1, save_best_only=True, save_weights_only=True)
-    ]
-    model.fit(train_dataset, epochs=50, verbose=1, validation_data=val_dataset, callbacks=cbs)
-
-    print('\nLoading model weights: {}...')
-    model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / f'weights_v{Config.version}.h5'))
-
-    print('\nPredicting on validation set')
-    _val_generator = RobertaDataGenerator(val_df, augment=False)
-    val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
-                                                 output_types=(
-                                                     {'ids': tf.int32, 'att': tf.int32, 'tti': tf.int32},
-                                                     {'sts': tf.int32, 'ets': tf.int32}))
-    val_dataset = val_dataset.padded_batch(Config.Train.batch_size,
-                                           padded_shapes=({'ids': [max_l], 'att': [max_l], 'tti': [max_l]},
-                                                          {'sts': [max_l], 'ets': [max_l]}),
-                                           padding_values=({'ids': 1, 'att': 0, 'tti': 0},
-                                                           {'sts': 0, 'ets': 0}))
-    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    start_idx, end_idx = model.predict(val_dataset, verbose=1)
+    start_idx /= Config.Train.n_folds
+    end_idx /= Config.Train.n_folds
     start_idx = np.argmax(start_idx, axis=-1)
     end_idx = np.argmax(end_idx, axis=-1)
-    val_df = val_df[_val_generator.exception_mask]
+
     start_gt_end_df = val_df[start_idx > end_idx]
+    start_gt_end_df['start_idx'] = start_idx[start_idx > end_idx]
+    start_gt_end_df['end_idx'] = end_idx[start_idx > end_idx]
     start_gt_end_df.to_csv('start_gt_end.csv', index=False)
+
     end_idx = np.where(start_idx > end_idx, start_idx, end_idx)
     jaccard_score = get_jaccard_from_df(val_df, start_idx, end_idx)
-    print(f'\n>> Jaccard score on validation data: {jaccard_score}')
+    print(f'\n>> Ensemble: jaccard score on validation data: {jaccard_score}')
+    jaccard_score = get_jaccard_from_df(val_df, start_idx, end_idx, return_full_text_when_neutral=True)
+    print(f'\n>> Ensemble: jaccard score on validation data when full text is selected for '
+          f'neutral sentiment: {jaccard_score}')
     # predict_test()
 
 
