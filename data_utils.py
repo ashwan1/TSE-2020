@@ -1,12 +1,11 @@
 import random
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from tensorflow import keras
-from config import Config
+
 from augmentation import synonym_replacement, random_char_repeat, random_char_deletion
+from config import Config
 from utils import get_tokenizer, get_ft_embeddings
 
 
@@ -127,14 +126,10 @@ class RobertaTestDataGenerator:
 
 
 class RobertaData:
-    def __init__(self, data_path: Path, mode: str):
-        self._data_path = data_path
-        self._mode = mode
+    def __init__(self, df: pd.DataFrame):
+        self._data_df = df
         self._tokenizer = get_tokenizer('roberta')
         self._sentiment_ids = {'positive': 1313, 'negative': 2430, 'neutral': 7974}
-        self._data_df = pd.read_csv(data_path)
-        self._data_df.dropna(inplace=True)
-        self._data_df = self._data_df.sample(frac=0.25, random_state=Config.seed)
         n_data = self._data_df.shape[0]
         self._input_ids = np.ones((n_data, Config.Train.max_len), dtype='int32')
         self._attention_mask = np.zeros((n_data, Config.Train.max_len), dtype='int32')

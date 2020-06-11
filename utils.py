@@ -1,13 +1,9 @@
-import string
-
+import numpy as np
+import pandas as pd
 from gensim.models import FastText
-from sklearn.feature_extraction.text import CountVectorizer
 from tokenizers import ByteLevelBPETokenizer
 
 from config import Config
-import pandas as pd
-import numpy as np
-
 from losses_n_metrics import jaccard
 
 
@@ -20,17 +16,8 @@ def get_ft_embeddings():
     return __ft_embeddings
 
 
-def get_train_steps():
-    df = pd.read_csv(Config.train_path)
-    return _get_steps(df.shape[0])
-
-
-def get_validation_steps():
-    df = pd.read_csv(Config.validation_path)
-    return _get_steps(df.shape[0])
-
-
-def _get_steps(len_data: int) -> int:
+def get_steps(df):
+    len_data = df.shape[0]
     if len_data % Config.Train.batch_size == 0:
         steps: int = len_data // Config.Train.batch_size
     else:
@@ -38,8 +25,7 @@ def _get_steps(len_data: int) -> int:
     return steps
 
 
-def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray,
-                        end_idx: np.ndarray, return_full_text_when_neutral: bool = False) -> float:
+def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray, end_idx: np.ndarray) -> float:
     assert start_idx.shape == (df.shape[0],), f'start_idx.shape={start_idx.shape}; df.shape={df.shape}'
     assert end_idx.shape == start_idx.shape, f'end_idx.shape={end_idx.shape}; start_idx.shape={start_idx.shape}'
     tokenizer = get_tokenizer('roberta')
@@ -47,10 +33,12 @@ def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray,
     for i, row in enumerate(df.itertuples(index=False, name='tweet')):
         a = start_idx[i]
         b = end_idx[i]
+        if a > b:
+            b = a  # Todo: Do something about this condition
         text = ' ' + ' '.join(row.text.split())
         encoded_text = tokenizer.encode(text)
         pred_selected_text = tokenizer.decode(encoded_text.ids[a - 1:b])
-        if return_full_text_when_neutral and row.sentiment.lower() == 'neutral':
+        if row.sentiment.lower() == 'neutral':
             pred_selected_text = row.selected_text
         jaccards.append(jaccard(row.selected_text, pred_selected_text))
     return float(np.mean(jaccards))
