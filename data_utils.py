@@ -213,14 +213,14 @@ class XLNetDataGenerator:
             # find the intersection between text and selected text
             idx_start = text.find(selected_text)
 
-            chars = np.zeros((len(text)))
-            chars[idx_start:idx_start + len(selected_text)] = 1
-
-            # tokenize with offsets
-            input_tokens = self._tokenizer.tokenize(text)
+            # calculate offsets
+            text_tokens = self._tokenizer.tokenize(text)
+            selected_text_tokens = self._tokenizer.tokenize(selected_text)
+            chars = np.zeros((len(''.join(text_tokens))))
+            chars[idx_start:idx_start + len(''.join(selected_text_tokens))] = 1
             offsets = []
             idx = 0
-            for t in input_tokens:
+            for t in text_tokens:
                 len_t = len(t)
                 offsets.append((idx, idx + len_t))
                 idx += len_t
@@ -237,6 +237,81 @@ class XLNetDataGenerator:
             input_ids_orig = self._tokenizer.encode(text, add_special_tokens=False)
             input_ids = input_ids_orig + [4] + [self._sentiment_ids[row.sentiment]] + [4, 3]
             token_type_ids = [0] * (len(input_ids_orig) + 1) + [1, 1] + [2]
+            attention_mask = [1] * (len(input_ids_orig) + 4)
+            np_start_tokens = np.zeros((len(input_ids)), dtype='int')
+            np_start_tokens[start_tokens] = 1
+            np_end_tokens = np.zeros((len(input_ids)), dtype='int')
+            np_end_tokens[end_tokens] = 1
+            start_tokens = np_start_tokens.tolist()
+            end_tokens = np_end_tokens.tolist()
+            yield ({'ids': input_ids, 'att': attention_mask, 'tti': token_type_ids},
+                   {'sts': start_tokens, 'ets': end_tokens})
+
+
+class AlbertDataGenerator:
+    def __init__(self, data: pd.DataFrame, augment: bool = False):
+        self._augment = augment
+        self._tokenizer = get_tokenizer('albert')
+        self._sentiment_ids = {'positive': 2221, 'negative': 3682, 'neutral': 8387}
+        self._data_df = data
+        self.exception_count = 0
+        self.exceptions = []
+        self.exception_mask = []
+
+    def generate(self):
+        for row in self._data_df.itertuples(index=False, name='tweet'):
+            text: str = row.text.lower()
+            selected_text: str = row.selected_text.lower()
+            if self._augment and random.random() > 0.5:
+                text_list = text.split()
+                n = random.choice([0, 1, 2, 3])
+                if n == 0:
+                    text_list, change_logs = synonym_replacement(text_list, 2)
+                    text = ' '.join(text_list)
+                    for k, v in change_logs.items():
+                        selected_text = selected_text.replace(k, v)
+                elif n == 1:
+                    text_list, change_logs = random_char_repeat(text_list)
+                    text = ' '.join(text_list)
+                    for k, v in change_logs.items():
+                        selected_text = selected_text.replace(k, v)
+                elif n == 2:
+                    text_list, change_logs = random_char_deletion(text_list)
+                    text = ' '.join(text_list)
+                    for k, v in change_logs.items():
+                        selected_text = selected_text.replace(k, v)
+                else:
+                    text = ' '.join(text_list)
+            # find overlap
+            text = ' '.join(text.split())
+            selected_text = ' '.join(selected_text.split())
+            # find the intersection between text and selected text
+            idx_start = text.find(selected_text)
+
+            # calculate offsets
+            text_tokens = self._tokenizer.tokenize(text)
+            selected_text_tokens = self._tokenizer.tokenize(selected_text)
+            chars = np.zeros((len(''.join(text_tokens))))
+            chars[idx_start:idx_start + len(''.join(selected_text_tokens))] = 1
+            offsets = []
+            idx = 0
+            for t in text_tokens:
+                len_t = len(t)
+                offsets.append((idx, idx + len_t))
+                idx += len_t
+
+            # compute targets
+            target_idx = []
+            for i, (o1, o2) in enumerate(offsets):
+                if sum(chars[o1: o2]) > 0:
+                    target_idx.append(i)
+
+            start_tokens = target_idx[0]
+            end_tokens = target_idx[-1]
+
+            input_ids_orig = self._tokenizer.encode(text, add_special_tokens=False)
+            input_ids = [2] + input_ids_orig + [3] + [self._sentiment_ids[row.sentiment]] + [3]
+            token_type_ids = [0] * (len(input_ids_orig) + 2) + [1, 1]
             attention_mask = [1] * (len(input_ids_orig) + 4)
             np_start_tokens = np.zeros((len(input_ids)), dtype='int')
             np_start_tokens[start_tokens] = 1

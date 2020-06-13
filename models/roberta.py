@@ -26,7 +26,7 @@ def get_roberta():
     x1 = keras.layers.Conv1D(32, 2, padding='same')(x1)
     x1 = keras.layers.Dense(1)(x1)
     x1 = keras.layers.Flatten()(x1)
-    x1 = keras.layers.Activation('softmax', name='sts')(x1)
+    x1 = keras.layers.Activation('softmax', dtype='float32', name='sts')(x1)
 
     x2 = keras.layers.Dropout(0.15)(x[0])
     x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
@@ -38,7 +38,7 @@ def get_roberta():
     x2 = keras.layers.Conv1D(32, 2, padding='same')(x2)
     x2 = keras.layers.Dense(1)(x2)
     x2 = keras.layers.Flatten()(x2)
-    x2 = keras.layers.Activation('softmax', name='ets')(x2)
+    x2 = keras.layers.Activation('softmax', dtype='float32', name='ets')(x2)
 
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 

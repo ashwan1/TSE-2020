@@ -1,19 +1,19 @@
 import tensorflow as tf
 from tensorflow import keras
-from transformers import BertConfig, TFBertModel
+from transformers import ElectraConfig, TFElectraModel
 
 from config import Config
 
 
-def get_bert():
+def get_electra():
     ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='ids')
     att = keras.layers.Input(shape=(None,), dtype=tf.int32, name='att')
     tok_type_ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='tti')
 
-    config = BertConfig.from_pretrained(Config.Bert.config)
-    bert_model = TFBertModel.from_pretrained(Config.Bert.model, config=config)
+    config = ElectraConfig.from_pretrained(Config.Electra.config)
+    electra_model = TFElectraModel.from_pretrained(Config.Electra.model, config=config)
 
-    x = bert_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
+    x = electra_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
 
     x1 = keras.layers.Dropout(0.15)(x[0])
     x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)

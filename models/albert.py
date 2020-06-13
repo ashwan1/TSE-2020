@@ -1,27 +1,27 @@
 import tensorflow as tf
 from tensorflow import keras
-from transformers import BertConfig, TFBertModel
+from transformers import AlbertConfig, TFAlbertModel
 
 from config import Config
 
 
-def get_bert():
+def get_albert():
     ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='ids')
     att = keras.layers.Input(shape=(None,), dtype=tf.int32, name='att')
     tok_type_ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='tti')
 
-    config = BertConfig.from_pretrained(Config.Bert.config)
-    bert_model = TFBertModel.from_pretrained(Config.Bert.model, config=config)
+    config = AlbertConfig.from_pretrained(Config.Albert.config)
+    albert_model = TFAlbertModel.from_pretrained(Config.Albert.model, config=config)
 
-    x = bert_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
+    x = albert_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
 
     x1 = keras.layers.Dropout(0.15)(x[0])
     x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)
     x1 = keras.layers.LeakyReLU()(x1)
-    x1 = keras.layers.LayerNormalization()(x1)
+    x1 = keras.layers.LayerNormalization(epsilon=config.layer_norm_eps)(x1)
     x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
     x1 = keras.layers.LeakyReLU()(x1)
-    x1 = keras.layers.LayerNormalization()(x1)
+    x1 = keras.layers.LayerNormalization(epsilon=config.layer_norm_eps)(x1)
     x1 = keras.layers.Conv1D(32, 2, padding='same')(x1)
     x1 = keras.layers.Conv1D(1, 1)(x1)
     x1 = keras.layers.Flatten()(x1)
@@ -30,10 +30,10 @@ def get_bert():
     x2 = keras.layers.Dropout(0.15)(x[0])
     x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
     x2 = keras.layers.LeakyReLU()(x2)
-    x2 = keras.layers.LayerNormalization()(x2)
+    x2 = keras.layers.LayerNormalization(epsilon=config.layer_norm_eps)(x2)
     x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
     x2 = keras.layers.LeakyReLU()(x2)
-    x2 = keras.layers.LayerNormalization()(x2)
+    x2 = keras.layers.LayerNormalization(epsilon=config.layer_norm_eps)(x2)
     x2 = keras.layers.Conv1D(32, 2, padding='same')(x2)
     x2 = keras.layers.Conv1D(1, 1)(x2)
     x2 = keras.layers.Flatten()(x2)

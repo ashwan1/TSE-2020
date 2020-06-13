@@ -23,7 +23,7 @@ def get_xlnet():
     x1 = keras.layers.LeakyReLU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
     x1 = keras.layers.Conv1D(32, 2, padding='same')(x1)
-    x1 = keras.layers.Dense(1)(x1)
+    x1 = keras.layers.Conv1D(1, 1)(x1)
     x1 = keras.layers.Flatten()(x1)
     x1 = keras.layers.Activation('softmax', dtype='float32', name='sts')(x1)
 
@@ -35,7 +35,7 @@ def get_xlnet():
     x2 = keras.layers.LeakyReLU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
     x2 = keras.layers.Conv1D(32, 2, padding='same')(x2)
-    x2 = keras.layers.Dense(1)(x2)
+    x2 = keras.layers.Conv1D(1, 1)(x2)
     x2 = keras.layers.Flatten()(x2)
     x2 = keras.layers.Activation('softmax', dtype='float32', name='ets')(x2)
 
