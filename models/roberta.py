@@ -43,6 +43,8 @@ def get_roberta():
     model = keras.models.Model(inputs=[ids, att, tok_type_ids], outputs=[x1, x2])
 
     optimizer = keras.optimizers.Adam(learning_rate=6e-5)
+    if Config.Train.use_amp:
+        optimizer = keras.mixed_precision.experimental.LossScaleOptimizer(optimizer, 'dynamic')
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
 
