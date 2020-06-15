@@ -8,6 +8,7 @@ class Config:
     seed = 88888
     model_type = 'roberta'
 
+    data_path = _root_dir / 'data/train.csv'
     train_path = _root_dir / 'data/use_this_train.csv'
     validation_path = _root_dir / 'data/use_this_val.csv'
     test_path = _root_dir / 'data/test.csv'
@@ -18,7 +19,7 @@ class Config:
     ft_embeddings_size = 200
 
     class Roberta:
-        roberta_base_path = _root_dir / 'pretrained_models/distilroberta_base'
+        roberta_base_path = _root_dir / 'pretrained_models/roberta_base'
         vocab_file = roberta_base_path / 'vocab.json'
         merges_file = roberta_base_path / 'merges.txt'
         config = roberta_base_path / 'config.json'
@@ -55,7 +56,7 @@ class Config:
         use_amp = False
         n_folds = 5
         batch_size = 32
-        max_len = 130
+        max_len = 102
         label_smoothing = 0.1
         checkpoint_dir = _root_dir / 'checkpoints'
         tf_log_dir = _root_dir / 'tf_logs'

@@ -12,30 +12,41 @@ def get_roberta():
     tok_type_ids = keras.layers.Input(shape=(None,), dtype=tf.int32, name='tti')
 
     config = RobertaConfig.from_pretrained(Config.Roberta.config)
+    config.output_hidden_states = True
     roberta_model = TFRobertaModel.from_pretrained(Config.Roberta.model, config=config)
 
-    x = roberta_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
+    _, _, x = roberta_model(ids, attention_mask=att, token_type_ids=tok_type_ids)
 
-    x1 = keras.layers.Dropout(0.15)(x[0])
+    x1 = keras.layers.Dropout(0.15)(x[-1])
     x1 = keras.layers.Conv1D(768, 2, padding='same')(x1)
     x1 = keras.layers.LeakyReLU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
-    x1 = keras.layers.Conv1D(64, 2, padding='same')(x1)
+    x1 = keras.layers.add([x1, x[-2]])
+    x1 = keras.layers.Conv1D(768, 5, padding='same')(x1)
     x1 = keras.layers.LeakyReLU()(x1)
     x1 = keras.layers.LayerNormalization()(x1)
-    x1 = keras.layers.Conv1D(32, 2, padding='same')(x1)
+    x1 = keras.layers.add([x1, x[-3]])
+    x1 = keras.layers.Conv1D(768, 8, padding='same')(x1)
+    x1 = keras.layers.LeakyReLU()(x1)
+    x1 = keras.layers.LayerNormalization()(x1)
+    x1 = keras.layers.add([x1, x[-4]])
     x1 = keras.layers.Dense(1)(x1)
     x1 = keras.layers.Flatten()(x1)
     x1 = keras.layers.Activation('softmax', dtype='float32', name='sts')(x1)
 
-    x2 = keras.layers.Dropout(0.15)(x[0])
+    x2 = keras.layers.Dropout(0.15)(x[-1])
     x2 = keras.layers.Conv1D(768, 2, padding='same')(x2)
     x2 = keras.layers.LeakyReLU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
-    x2 = keras.layers.Conv1D(64, 2, padding='same')(x2)
+    x2 = keras.layers.add([x2, x[-2]])
+    x2 = keras.layers.Conv1D(768, 5, padding='same')(x2)
     x2 = keras.layers.LeakyReLU()(x2)
     x2 = keras.layers.LayerNormalization()(x2)
-    x2 = keras.layers.Conv1D(32, 2, padding='same')(x2)
+    x2 = keras.layers.add([x2, x[-3]])
+    x2 = keras.layers.Conv1D(768, 8, padding='same')(x2)
+    x2 = keras.layers.LeakyReLU()(x2)
+    x2 = keras.layers.LayerNormalization()(x2)
+    x2 = keras.layers.add([x2, x[-4]])
     x2 = keras.layers.Dense(1)(x2)
     x2 = keras.layers.Flatten()(x2)
     x2 = keras.layers.Activation('softmax', dtype='float32', name='ets')(x2)
@@ -48,6 +59,7 @@ def get_roberta():
     loss = keras.losses.CategoricalCrossentropy(label_smoothing=Config.Train.label_smoothing)
     model.compile(loss=loss, optimizer=optimizer)
 
+    keras.utils.plot_model(model, to_file='robert.png', show_shapes=True)
     return model
 
 

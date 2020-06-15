@@ -6,7 +6,6 @@ import shutil
 import random
 import warnings
 from time import time
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -15,14 +14,14 @@ import tensorflow as tf
 from tensorflow import keras
 
 from config import Config
-from data_utils import RobertaDataGenerator, RobertaClassificationDataGenerator, BertDataGenerator, XLNetDataGenerator, \
-    AlbertDataGenerator
+from data_utils import RobertaDataGenerator, RobertaClassificationDataGenerator, BertDataGenerator
+from data_utils import XLNetDataGenerator, AlbertDataGenerator
 from models import get_roberta, get_classification_roberta, get_bert, get_xlnet, get_electra, get_albert
 from utils import get_jaccard_from_df, get_steps
 from custom_callbacks.warmup_cosine_decay import WarmUpCosineDecayScheduler
 
 
-def train_roberta(train_df, val_df, augment=False):
+def train_roberta(train_df, val_df, fold_i, augment=False):
     max_l = Config.Train.max_len
     _train_generator = RobertaDataGenerator(train_df, augment=augment)
     train_dataset = tf.data.Dataset.from_generator(_train_generator.generate,
@@ -49,21 +48,28 @@ def train_roberta(train_df, val_df, augment=False):
     val_dataset = val_dataset.repeat().prefetch(tf.data.experimental.AUTOTUNE)
 
     model = get_roberta()
-    model.summary()
-    model_name = f'weights_v{Config.version}.h5'
+    if fold_i == 0:
+        model.summary()
+    model_name = f'weights_v{Config.version}_f{fold_i + 1}.h5'
 
     train_spe = get_steps(train_df)
-    oof_spe = get_steps(val_df)
+    val_spe = get_steps(val_df)
 
+    tf_log_dir = Config.Train.tf_log_dir / f'roberta/fold{fold_i}'
+    tf_log_dir.mkdir(parents=True, exist_ok=True)
     cbs = [
         WarmUpCosineDecayScheduler(6e-5, 1200, warmup_steps=300, hold_base_rate_steps=200, verbose=0),
         keras.callbacks.ModelCheckpoint(
             str(Config.Train.checkpoint_dir / Config.model_type / model_name),
-            verbose=1, save_best_only=True, save_weights_only=True)
+            verbose=1, save_best_only=True, save_weights_only=True),
+        keras.callbacks.TensorBoard(log_dir=tf_log_dir, histogram_freq=2, update_freq=train_spe * 2, profile_batch=0)
     ]
     model.fit(train_dataset, epochs=2, verbose=1,
               validation_data=val_dataset, callbacks=cbs,
-              steps_per_epoch=train_spe, validation_steps=oof_spe)
+              steps_per_epoch=train_spe, validation_steps=val_spe)
+
+    print(f'Loading checkpoint {model_name}...')
+    model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / model_name))
 
     _val_generator = RobertaDataGenerator(val_df, augment=False)
     val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
@@ -80,7 +86,8 @@ def train_roberta(train_df, val_df, augment=False):
     s_idx = np.argmax(s_idx, axis=-1)
     e_idx = np.argmax(e_idx, axis=-1)
     jaccard_score = get_jaccard_from_df(val_df, s_idx, e_idx, 'roberta', 'roberta.csv')
-    print(f'\n>>> jaccard_score for roberta: {jaccard_score}\n')
+    print(f'\n>>> Fold {fold_i + 1}: jaccard_score for roberta: {jaccard_score}\n')
+    return jaccard_score
 
 
 def train_bert(train_df, val_df, augment=False):
@@ -304,20 +311,28 @@ def train_albert(train_df, val_df, augment=False):
 
 
 def train(model_type):
-    train_df = pd.read_csv(Config.train_path).dropna()
-    val_df = pd.read_csv(Config.validation_path).dropna()
-    train_df = train_df.reindex(train_df.text.str.len().sort_values().index).reset_index(drop=True)
-    val_df = val_df.reindex(val_df.text.str.len().sort_values().index).reset_index(drop=True)
-    if model_type == 'roberta' or model_type == 'distill_roberta':
-        train_roberta(train_df, val_df, augment=Config.Train.augment)
-    elif model_type == 'bert':
-        train_bert(train_df, val_df, augment=Config.Train.augment)
-    elif model_type == 'xlnet':
-        train_xlnet(train_df, val_df, augment=Config.Train.augment)
-    elif model_type == 'electra':
-        train_electra(train_df, val_df, augment=Config.Train.augment)
-    elif model_type == 'albert':
-        train_albert(train_df, val_df, augment=Config.Train.augment)
+    data_df = pd.read_csv(Config.data_path).dropna()
+    data_df = data_df.sample(frac=1, random_state=Config.seed).reset_index(drop=True)
+    skf = StratifiedKFold(n_splits=Config.Train.n_folds)
+    splits = skf.split(data_df.text.values, data_df.sentiment.values)
+    jaccards = []
+    for i, (train_idx, val_idx) in enumerate(splits):
+        train_df = data_df.iloc[train_idx]
+        val_df = data_df.iloc[val_idx]
+        train_df = train_df.reindex(train_df.text.str.len().sort_values().index).reset_index(drop=True)
+        val_df = val_df.reindex(val_df.text.str.len().sort_values().index).reset_index(drop=True)
+        if model_type == 'roberta':
+            jaccard = train_roberta(train_df, val_df, i, augment=Config.Train.augment)
+            jaccards.append(jaccard)
+        elif model_type == 'bert':
+            train_bert(train_df, val_df, augment=Config.Train.augment)
+        elif model_type == 'xlnet':
+            train_xlnet(train_df, val_df, augment=Config.Train.augment)
+        elif model_type == 'electra':
+            train_electra(train_df, val_df, augment=Config.Train.augment)
+        elif model_type == 'albert':
+            train_albert(train_df, val_df, augment=Config.Train.augment)
+    print(f'>>> Mean jaccard for {model_type}: {np.mean(jaccards)}')
 
 
 def train_roberta_classifier():
