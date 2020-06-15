@@ -6,7 +6,7 @@ _root_dir = Path(__file__).parent
 class Config:
     version = 0
     seed = 88888
-    model_type = 'roberta'
+    model_type = 'albert'
 
     data_path = _root_dir / 'data/train.csv'
     train_path = _root_dir / 'data/use_this_train.csv'
@@ -49,6 +49,7 @@ class Config:
         vocab_file = albert_base_path / 'spiece.model'
         config = albert_base_path / 'config.json'
         model = albert_base_path / 'tf_model.h5'
+        max_len = 110
 
     class Train:
         augment = False

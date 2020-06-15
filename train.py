@@ -255,8 +255,8 @@ def train_electra(train_df, val_df, augment=False):
     print(f'\n>>> jaccard_score for electra: {jaccard_score}\n')
 
 
-def train_albert(train_df, val_df, augment=False):
-    max_l = Config.Train.max_len
+def train_albert(train_df, val_df, fold_i, augment=False):
+    max_l = Config.Albert.max_len
     _train_generator = AlbertDataGenerator(train_df, augment=augment)
     train_dataset = tf.data.Dataset.from_generator(_train_generator.generate,
                                                    output_types=(
@@ -278,11 +278,12 @@ def train_albert(train_df, val_df, augment=False):
     val_dataset = val_dataset.repeat().prefetch(tf.data.experimental.AUTOTUNE)
 
     model = get_albert()
-    model.summary()
-    model_name = f'weights_v{Config.version}.h5'
+    if fold_i == 0:
+        model.summary()
+    model_name = f'weights_v{Config.version}_f{fold_i + 1}.h5'
 
     train_spe = get_steps(train_df)
-    oof_spe = get_steps(val_df)
+    val_spe = get_steps(val_df)
 
     cbs = [
         WarmUpCosineDecayScheduler(6e-5, 1200, warmup_steps=300, hold_base_rate_steps=200, verbose=0),
@@ -292,7 +293,10 @@ def train_albert(train_df, val_df, augment=False):
     ]
     model.fit(train_dataset, epochs=2, verbose=1,
               validation_data=val_dataset, callbacks=cbs,
-              steps_per_epoch=train_spe, validation_steps=oof_spe)
+              steps_per_epoch=train_spe, validation_steps=val_spe)
+
+    print(f'Loading checkpoint {model_name}...')
+    model.load_weights(str(Config.Train.checkpoint_dir / Config.model_type / model_name))
 
     _val_generator = AlbertDataGenerator(val_df, augment=False)
     val_dataset = tf.data.Dataset.from_generator(_val_generator.generate,
@@ -307,7 +311,8 @@ def train_albert(train_df, val_df, augment=False):
     s_idx = np.argmax(s_idx, axis=-1)
     e_idx = np.argmax(e_idx, axis=-1)
     jaccard_score = get_jaccard_from_df(val_df, s_idx, e_idx, 'albert', 'albert.csv')
-    print(f'\n>>> jaccard_score for albert: {jaccard_score}\n')
+    print(f'\n>>> Fold {fold_i + 1}: jaccard_score for albert: {jaccard_score}\n')
+    return jaccard_score
 
 
 def train(model_type):
@@ -331,7 +336,8 @@ def train(model_type):
         elif model_type == 'electra':
             train_electra(train_df, val_df, augment=Config.Train.augment)
         elif model_type == 'albert':
-            train_albert(train_df, val_df, augment=Config.Train.augment)
+            jaccard = train_albert(train_df, val_df, i, augment=Config.Train.augment)
+            jaccards.append(jaccard)
     print(f'>>> Mean jaccard for {model_type}: {np.mean(jaccards)}')
 
 
