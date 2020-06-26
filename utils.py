@@ -61,7 +61,7 @@ def _get_selected_text_for_xlnet(text, a, b, tokenizer):
 
 
 def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray, end_idx: np.ndarray,
-                        model_type: str, pred_file: str) -> float:
+                        model_type: str, pred_file) -> float:
     assert start_idx.shape == (df.shape[0],), f'start_idx.shape={start_idx.shape}; df.shape={df.shape}'
     assert end_idx.shape == start_idx.shape, f'end_idx.shape={end_idx.shape}; start_idx.shape={start_idx.shape}'
     tokenizer = get_tokenizer(model_type)
@@ -93,7 +93,8 @@ def get_jaccard_from_df(df: pd.DataFrame, start_idx: np.ndarray, end_idx: np.nda
     df['jaccard'] = jaccards
     df['pred_selected_text'] = pred_selected_texts
     df['text_tokens'] = text_tokens
-    df.to_csv(Path(f'{Config.pred_dir}/{pred_file}'), index=False)
+    if pred_file is not None:
+        df.to_csv(Path(f'{Config.pred_dir}/{pred_file}'), index=False)
     return float(np.mean(jaccards))
 
 

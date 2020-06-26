@@ -6,7 +6,7 @@ _root_dir = Path(__file__).parent
 class Config:
     version = 0
     seed = 88888
-    model_type = 'albert'
+    model_type = 'distilroberta'
 
     data_path = _root_dir / 'data/train.csv'
     train_path = _root_dir / 'data/use_this_train.csv'
@@ -19,7 +19,7 @@ class Config:
     ft_embeddings_size = 200
 
     class Roberta:
-        roberta_base_path = _root_dir / 'pretrained_models/roberta_base'
+        roberta_base_path = _root_dir / 'pretrained_models/distilroberta_base'
         vocab_file = roberta_base_path / 'vocab.json'
         merges_file = roberta_base_path / 'merges.txt'
         config = roberta_base_path / 'config.json'
